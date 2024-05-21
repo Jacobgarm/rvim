@@ -1,0 +1,303 @@
+
+    redox-os
+    /
+    termion
+
+Code
+Pull requests 1
+Actions
+Security
+
+    Insights
+
+Owner avatar
+termion
+Public
+
+redox-os/termion
+t
+Add file
+Folders and files
+Namecommit message
+	Last commit date
+Latest commit
+jackpot51
+jackpot51
+Merge branch 'feature/ctrl_arrow' into 'master'
+1ce26d6
+Mar 22, 2024
+History
+examples
+	
+Merge branch 'rawterminal-alternatescreen-errors' into 'master'
+
+Oct 21, 2022
+src
+
+Added Ctrl/Alt/Shift+Navigation key support.
+
+Mar 19, 2024
+.gitignore
+	
+Add README
+	
+Mar 6, 2016
+.gitlab-ci.yml
+	
+gitlab pipeline: try to run inside "script" to get a tty
+	
+Jan 18, 2020
+.travis.yml
+	
+run travis builds on osx also
+	
+Jun 1, 2017
+CHANGELOG.md
+	
+Bump version and add migrations guideline
+	
+Jan 5, 2024
+Cargo.toml
+	
+Bump version and add migrations guideline
+	
+Jan 5, 2024
+FUNDING.json
+	
+Add FUNDING.json
+	
+Mar 11, 2024
+LICENSE
+	
+Add license
+	
+Mar 8, 2016
+README.md
+	
+Bump version and add migrations guideline
+	
+Jan 5, 2024
+image.png
+	
+Example image
+	
+Mar 16, 2016
+logo.svg
+	
+Optimize SVG.
+	
+Dec 19, 2016
+Repository files navigation
+
+README
+
+    MIT license
+
+Termion logo
+Build Status Latest Version 	Documentation 	Examples 	Changelog 	Tutorial
+
+Termion is a pure Rust, bindless library for low-level handling, manipulating and reading information about terminals. This provides a full-featured alternative to Termbox.
+
+Termion aims to be simple and yet expressive. It is bindless, meaning that it is not a front-end to some other library (e.g., ncurses or termbox), but a standalone library directly talking to the TTY.
+
+Termion is quite convenient, due to its complete coverage of essential TTY features, providing one consistent API. Termion is rather low-level containing only abstraction aligned with what actually happens behind the scenes. For something more high-level, refer to inquirer-rs, which uses Termion as backend.
+
+Termion generates escapes and API calls for the user. This makes it a whole lot cleaner to use escapes.
+
+Supports Redox, Mac OS X, BSD, and Linux (or, in general, ANSI terminals).
+A note on stability
+
+This crate is stable.
+Cargo.toml
+
+[dependencies]
+termion = "*"
+
+2.0.0 to 3.0.0 guide
+
+Changes are only required if you were using IntoRawMode on generic terminals W: Write. Now, terminal is also required to implement AsFd trait. So replacing generic bounds with W: Write + AsFd should be sufficient.
+1.0.0 to 2.0.0 guide
+1.0.0 	2.0.0
+AlternativeScreen::from(x) 	x.into_alternative_screen()
+0.1.0 to 1.0.0 guide
+
+This sample table gives an idea of how to go about converting to the new major version of Termion.
+0.1.0 	1.0.0
+use termion::IntoRawMode 	use termion::raw::IntoRawMode
+use termion::TermRead 	use termion::input::TermRead
+stdout.color(color::Red); 	write!(stdout, "{}", color::Fg(color::Red));
+stdout.color_bg(color::Red); 	write!(stdout, "{}", color::Bg(color::Red));
+stdout.goto(x, y); 	write!(stdout, "{}", cursor::Goto(x, y));
+color::rgb(r, g, b); 	color::Rgb(r, g, b) (truecolor)
+x.with_mouse() 	MouseTerminal::from(x)
+Features
+
+    Raw mode.
+    TrueColor.
+    256-color mode.
+    Cursor movement.
+    Text formatting.
+    Console size.
+    TTY-only stream.
+    Control sequences.
+    Termios control.
+    Password input.
+    Redox support.
+    Safe isatty wrapper.
+    Panic-free error handling.
+    Special keys events (modifiers, special keys, etc.).
+    Allocation-free.
+    Asynchronous key events.
+    Mouse input.
+    Carefully tested.
+    Detailed documentation on every item.
+
+and much more.
+Examples
+Style and colors.
+
+extern crate termion;
+
+use termion::{color, style};
+
+use std::io;
+
+fn main() {
+    println!("{}Red", color::Fg(color::Red));
+    println!("{}Blue", color::Fg(color::Blue));
+    println!("{}Blue'n'Bold{}", style::Bold, style::Reset);
+    println!("{}Just plain italic", style::Italic);
+}
+
+Moving the cursor
+
+extern crate termion;
+
+fn main() {
+    print!("{}{}Stuff", termion::clear::All, termion::cursor::Goto(1, 1));
+}
+
+Mouse
+
+extern crate termion;
+
+use termion::event::{Key, Event, MouseEvent};
+use termion::input::{TermRead, MouseTerminal};
+use termion::raw::IntoRawMode;
+use std::io::{Write, stdout, stdin};
+
+fn main() {
+    let stdin = stdin();
+    let mut stdout = MouseTerminal::from(stdout().into_raw_mode().unwrap());
+
+    write!(stdout, "{}{}q to exit. Click, click, click!", termion::clear::All, termion::cursor::Goto(1, 1)).unwrap();
+    stdout.flush().unwrap();
+
+    for c in stdin.events() {
+        let evt = c.unwrap();
+        match evt {
+            Event::Key(Key::Char('q')) => break,
+            Event::Mouse(me) => {
+                match me {
+                    MouseEvent::Press(_, x, y) => {
+                        write!(stdout, "{}x", termion::cursor::Goto(x, y)).unwrap();
+                    },
+                    _ => (),
+                }
+            }
+            _ => {}
+        }
+        stdout.flush().unwrap();
+    }
+}
+
+Read a password
+
+extern crate termion;
+
+use termion::input::TermRead;
+use std::io::{Write, stdout, stdin};
+
+fn main() {
+    let stdout = stdout();
+    let mut stdout = stdout.lock();
+    let stdin = stdin();
+    let mut stdin = stdin.lock();
+
+    stdout.write_all(b"password: ").unwrap();
+    stdout.flush().unwrap();
+
+    let pass = stdin.read_passwd(&mut stdout);
+
+    if let Ok(Some(pass)) = pass {
+        stdout.write_all(pass.as_bytes()).unwrap();
+        stdout.write_all(b"\n").unwrap();
+    } else {
+        stdout.write_all(b"Error\n").unwrap();
+    }
+}
+
+Usage
+
+See examples/, and the documentation, which can be rendered using cargo doc.
+
+For a more complete example, see a minesweeper implementation, that I made for Redox using termion.
+
+License
+
+MIT/X11.
+About
+
+Mirror of https://gitlab.redox-os.org/redox-os/termion
+Topics
+rust terminal tui tty supports-redox
+Resources
+Readme
+License
+MIT license
+Activity
+Custom properties
+Stars
+2.1k stars
+Watchers
+27 watching
+Forks
+118 forks
+Report repository
+Releases
+11 tags
+Packages
+No packages published
+Contributors 48
+
+    @ticki
+    @jackpot51
+    @IGI-111
+    @gyscos
+    @mmstick
+    @skade
+    @lilydjwg
+    @akitsu-sanae
+    @JoshMcguigan
+    @ridcully
+    @Munksgaard
+    @luqmana
+    @MovingtoMars
+    @untitaker
+
++ 34 contributors
+Languages
+
+    Rust 100.0% 
+
+Footer
+© 2024 GitHub, Inc.
+Footer navigation
+
+    Terms
+    Privacy
+    Security
+    Status
+    Docs
+     dwContact
+
