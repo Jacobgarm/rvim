@@ -550,8 +550,15 @@ fn remove_selected(buf: &mut Buffer) {
 
 fn replace_selected(buf: &mut Buffer, text: &mut Vec<String32>) {
     let (start, _) = selected_bounds(buf);
+    let text_len = text.len();
     remove_selected(buf);
-    insert_text(buf, text, start);
+    if buf.mode == Mode::Visual {
+        insert_text(buf, text, start);
+    } else {
+        insert_lines(buf, text, start.0)
+    }
+    buf.cursor.0 = start.0 + text_len - 1;
+    buf.cursor.1 = max(1, buf.contents[buf.cursor.0 - 1].len());
 }
 
 fn paste_clip(buf: &mut Buffer, after: bool) {
