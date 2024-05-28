@@ -3,9 +3,6 @@ use std::env;
 use std::io::prelude::*;
 use std::io::{stdin, stdout};
 use std::process::{Command, Stdio};
-use std::sync::RwLock;
-
-use lazy_static::lazy_static;
 
 use notify::{RecursiveMode, Watcher};
 
@@ -17,6 +14,8 @@ use termion::input::TermRead;
 
 mod common;
 use common::*;
+mod log;
+use log::*;
 mod terminal;
 use terminal::*;
 mod config;
@@ -25,27 +24,6 @@ mod buffer;
 use buffer::*;
 mod undo;
 use undo::*;
-
-lazy_static! {
-    static ref CONFIG: RwLock<Config> = RwLock::new({
-        if let Some(conf) = Config::from_file() {
-            conf
-        } else {
-            Config::default()
-        }
-    });
-    static ref LOG: RwLock<String> = RwLock::new(String::new());
-}
-
-#[allow(unused_macros)]
-macro_rules! log {
-    ($($t:tt)*) => {
-        let s = &format!($($t)*);
-        let mut log = LOG.write().unwrap();
-        (*log).push_str(s);
-        (*log).push_str("\n\r");
-    };
-}
 
 struct Process {
     buffers: Vec<Buffer>,
@@ -945,7 +923,6 @@ fn write_buffer(buf: &mut Buffer) -> std::io::Result<()> {
 }
 
 fn main() -> std::io::Result<()> {
-    println!("{:?}", split_text(""));
     let mut watcher = notify::recommended_watcher(|res| match res {
         Ok(_) => {
             let mut conf = CONFIG.write().unwrap();
@@ -957,12 +934,14 @@ fn main() -> std::io::Result<()> {
     })
     .unwrap();
 
-    watcher
-        .watch(
-            std::path::Path::new(&config_path()),
-            RecursiveMode::NonRecursive,
-        )
-        .unwrap_or(());
+    if let Some(conf_path) = config_path() {
+        watcher
+            .watch(
+                std::path::Path::new(&conf_path),
+                RecursiveMode::NonRecursive,
+            )
+            .unwrap_or(());
+    }
 
     let args: Vec<String> = env::args().collect();
     if args.len() == 1 {
@@ -991,7 +970,9 @@ fn main() -> std::io::Result<()> {
     let stdin = stdin();
     let mut term = Terminal::from_stdout(stdout());
     print!("\x1b[?47h"); // Save terminal state
-                         //print!("\x1b[s");
+
+    //print!("\x1b[s");
+
     redraw(&process.get_active_buffer(), &mut term);
 
     for c in stdin.events() {
@@ -1015,10 +996,8 @@ fn main() -> std::io::Result<()> {
     print!("\x1b[?47l"); // Restore terminal state
                          //print!("\x1b[u");
     term.goto(term.rows().into(), 1);
-    let log = LOG.read().unwrap();
-    if !log.is_empty() {
-        print!("Logs:\n\r");
-        print!("{}", log);
+    if CONFIG.read().unwrap().logging {
+        print_log();
     }
     Ok(())
 }
